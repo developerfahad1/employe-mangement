@@ -1,6 +1,6 @@
 const express = require("express");
-const router = express.Router(); // ✅ spelling fixed
-const { verifyToken, requireHR } = require('../middleware/authMiddleware'); // ✅ Correct
+const router = express.Router();
+const { verifyToken, requireHR } = require('../middleware/authMiddleware');
 const Attendance = require("../models/attendance");
 
 // ✅ Attendance mark route
@@ -12,8 +12,22 @@ router.post("/mark", verifyToken, async (req, res) => {
   }
 
   try {
+    // ✅ Check if attendance is already marked today
+    const today = new Date();
+    today.setHours(0, 0, 0, 0); // zero time for date match
+
+    const alreadyMarked = await Attendance.findOne({
+      user: req.user.userId,
+      createdAt: { $gte: today }
+    });
+
+    if (alreadyMarked) {
+      return res.status(400).json({ message: "Attendance already marked today" });
+    }
+
+    // ✅ Save new attendance
     const newAttendance = new Attendance({
-      user: req.user.userId, // ✅ spelling fixed
+      user: req.user.userId,
       status: status,
     });
 
@@ -24,20 +38,16 @@ router.post("/mark", verifyToken, async (req, res) => {
       data: newAttendance,
     });
   } catch (err) {
-    res
-      .status(500)
-      .json({ message: "Error marking attendance", error: err.message });
+    res.status(500).json({ message: "Error marking attendance", error: err.message });
   }
 });
 
-
-
-
-// GET attendance route (Protected)
+// ✅ GET attendance route (Protected)
 router.get('/', verifyToken, async (req, res) => {
   try {
-    // Current logged-in user ka data fetch karo
-    const attendanceRecords = await Attendance.find({ user: req.user.userId }).populate('user', 'name email role');
+    const attendanceRecords = await Attendance.find({ user: req.user.userId })
+      .populate('user', 'name email role')
+      .sort({ createdAt: -1 }); // optional: latest first
 
     res.status(200).json({
       message: 'Attendance records fetched successfully',
@@ -49,10 +59,7 @@ router.get('/', verifyToken, async (req, res) => {
   }
 });
 
-
-
-// delete attendance only hr delete karsakta ha ya wo route ha 
-
+// ✅ Delete attendance (HR only)
 router.delete('/:id', verifyToken, requireHR, async (req, res) => {
   try {
     const attendanceId = req.params.id;
@@ -71,6 +78,5 @@ router.delete('/:id', verifyToken, requireHR, async (req, res) => {
     res.status(500).json({ message: 'Error deleting attendance', error: err.message });
   }
 });
-
 
 module.exports = router;
